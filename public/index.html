@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Issue Dashboard</title>
+    <!-- Add Leaflet.js CSS for mapping -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        /* Tab navigation styles */
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .tab-button {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-weight: 500;
+            color: #666;
+        }
+        
+        .tab-button.active {
+            border-bottom-color: #4a90e2;
+            color: #4a90e2;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Map styles */
+        #map-container {
+            height: 600px;
+            background-color: #eee;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        
+        /* Map controls */
+        .map-controls {
+            background-color: white;
+            padding: 12px;
+            border-radius: 4px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .map-controls label {
+            font-weight: 500;
+            margin-right: 5px;
+        }
+        
+        #issue-selector {
+            flex: 1;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .view-all-button {
+            background-color: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        /* Existing styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 4px;
+        }
+        
+        th {
+            text-align: left;
+            padding: 12px 15px;
+            background-color: #f2f2f2;
+            font-weight: 500;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            vertical-align: top;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-style: italic;
+            color: #777;
+        }
+        
+        .vote-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .vote-button {
+            background: none;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .vote-button:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .upvote:hover {
+            color: green;
+        }
+        
+        .downvote:hover {
+            color: red;
+        }
+        
+        .vote-count {
+            font-size: 12px;
+            color: #666;
+            margin-left: 5px;
+        }
+        
+        .refresh-info {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+            text-align: right;
+        }
+        
+        .text-cell {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .text-cell:hover {
+            white-space: normal;
+            overflow: visible;
+        }
+        
+        .severity-high {
+            color: #d73a49;
+            font-weight: bold;
+        }
+        
+        .severity-medium {
+            color: #f66a0a;
+        }
+        
+        .severity-low {
+            color: #2cbe4e;
+        }
+        
+        /* Location permission modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 4px;
+            max-width: 500px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .modal-title {
+            margin-top: 0;
+            font-size: 18px;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .modal-button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .primary-button {
+            background-color: #4a90e2;
+            color: white;
+        }
+        
+        .secondary-button {
+            background-color: #f2f2f2;
+            color: #333;
+        }
+        
+        /* Map marker popup */
+        .issue-popup {
+            max-width: 250px;
+        }
+        
+        .issue-popup h3 {
+            font-size: 16px;
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+        
+        .issue-popup p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Issue Dashboard</h1>
+        
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab-button active" data-tab="issues-list">Issues List</button>
+            <button class="tab-button" data-tab="issues-map">Issues Map</button>
+        </div>
+        
+        <!-- Tab Contents -->
+        <div id="issues-list" class="tab-content active">
+            <div id="issues-table-container">
+                <div class="loading">Loading issues...</div>
+            </div>
+        </div>
+        
+        <div id="issues-map" class="tab-content">
+            <!-- Map Controls -->
+            <div class="map-controls">
+                <label for="issue-selector">Select Issue:</label>
+                <select id="issue-selector">
+                    <option value="">Loading issues...</option>
+                </select>
+                <button id="view-all-button" class="view-all-button">View All Issues</button>
+            </div>
+            
+            <div id="map-container">
+                <div id="map"></div>
+            </div>
+        </div>
+        
+        <div class="refresh-info">
+            Data refreshes automatically every 10 minutes.
+            <span id="next-refresh"></span>
+        </div>
+    </div>
+
+    <!-- Location Permission Modal -->
+    <div id="location-modal" class="modal">
+        <div class="modal-content">
+            <h3 class="modal-title">Location Permission Required</h3>
+            <p>To vote on this issue, we need your approximate location to validate proximity to the reported issue.</p>
+            <p>This helps ensure meaningful votes from people in the affected area.</p>
+            <div class="modal-buttons">
+                <button id="cancel-location" class="modal-button secondary-button">Cancel</button>
+                <button id="allow-location" class="modal-button primary-button">Allow Location</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Leaflet.js for mapping -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    
+    <script>
+        // Global variables
+        let map;
+        let markers = [];
+        let currentIssues = [];
+        let pendingVoteData = null;
+        let selectedIssueId = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize tabs
+            initTabs();
+            
+            // Initial load
+            fetchIssues();
+            
+            // Set up refresh timer display
+            updateRefreshTimer();
+            
+            // Set up auto refresh (10 minutes)
+            setInterval(() => {
+                fetchIssues();
+                updateRefreshTimer();
+            }, 10 * 60 * 1000);
+            
+            // Initialize modal event listeners
+            document.getElementById('cancel-location').addEventListener('click', closeLocationModal);
+            document.getElementById('allow-location').addEventListener('click', requestLocationAndVote);
+            
+            // Map control event listeners
+            document.getElementById('issue-selector').addEventListener('change', handleIssueSelection);
+            document.getElementById('view-all-button').addEventListener('click', viewAllIssues);
+        });
+        
+        function initTabs() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Remove active class from all tabs
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                    
+                    // Add active class to clicked tab
+                    button.classList.add('active');
+                    const tabId = button.dataset.tab;
+                    document.getElementById(tabId).classList.add('active');
+                    
+                    // Initialize map if map tab is activated
+                    if (tabId === 'issues-map' && !map) {
+                        initMap();
+                    }
+                });
+            });
+        }
+
+        function initMap() {
+            // Initialize Leaflet map
+            map = L.map('map').setView([37.7749, -122.4194], 12); // Default view (will be updated with data)
+            
+            // Add OpenStreetMap tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+            
+            // Populate map with current issues if available
+            updateMapMarkers();
+        }
+        
+        function updateIssueSelector() {
+            const selector = document.getElementById('issue-selector');
+            
+            // Clear existing options
+            selector.innerHTML = '';
+            
+            // Add default option
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = '-- Select an issue to focus --';
+            selector.appendChild(defaultOption);
+            
+            // Add options for issues with location data
+            const issuesWithLocation = currentIssues.filter(issue => 
+                issue.location && issue.location.coordinates && 
+                issue.location.coordinates[0] && issue.location.coordinates[1]
+            );
+            
+            if (issuesWithLocation.length === 0) {
+                const noIssuesOption = document.createElement('option');
+                noIssuesOption.disabled = true;
+                noIssuesOption.textContent = 'No issues with location data';
+                selector.appendChild(noIssuesOption);
+                return;
+            }
+            
+            // Sort issues by severity (descending)
+            issuesWithLocation.sort((a, b) => b.effective_severity - a.effective_severity);
+            
+            // Add options for each issue
+            issuesWithLocation.forEach(issue => {
+                const option = document.createElement('option');
+                option.value = issue._id;
+                
+                // Create descriptive text for the option
+                const category = issue.issue_category || 'Uncategorized';
+                const severity = issue.effective_severity.toFixed(1);
+                const shortText = issue.text ? 
+                    (issue.text.length > 40 ? issue.text.substring(0, 40) + '...' : issue.text) : 
+                    'No description';
+                
+                option.textContent = `${category} (${severity}) - ${shortText}`;
+                selector.appendChild(option);
+            });
+        }
+        
+        function handleIssueSelection(event) {
+            selectedIssueId = event.target.value;
+            updateMapMarkers();
+        }
+        
+        function viewAllIssues() {
+            selectedIssueId = null;
+            document.getElementById('issue-selector').value = '';
+            updateMapMarkers();
+        }
+        
+        function updateMapMarkers() {
+            if (!map) return;
+            
+            // Clear existing markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            
+            if (currentIssues.length === 0) return;
+            
+            // Create bounds object to adjust map view
+            const bounds = L.latLngBounds();
+            let hasValidMarkers = false;
+            
+            // If we have a selected issue, only show that one
+            if (selectedIssueId) {
+                const selectedIssue = currentIssues.find(issue => issue._id === selectedIssueId);
+                
+                if (selectedIssue && selectedIssue.location && selectedIssue.location.coordinates) {
+                    const [lng, lat] = selectedIssue.location.coordinates;
+                    
+                    // Skip invalid coordinates
+                    if (lat && lng) {
+                        addMarker(selectedIssue, lat, lng, bounds);
+                        hasValidMarkers = true;
+                        
+                        // Center and zoom to the selected issue
+                        map.setView([lat, lng], 15);
+                    }
+                }
+            } else {
+                // Show all issues
+                currentIssues.forEach(issue => {
+                    // Skip issues without location data
+                    if (!issue.location || !issue.location.coordinates) return;
+                    
+                    const [lng, lat] = issue.location.coordinates;
+                    
+                    // Skip invalid coordinates
+                    if (!lat || !lng) return;
+                    
+                    addMarker(issue, lat, lng, bounds);
+                    hasValidMarkers = true;
+                });
+                
+                // Adjust map view to fit all markers if we have any
+                if (hasValidMarkers) {
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                }
+            }
+        }
+        
+        function addMarker(issue, lat, lng, bounds) {
+            // Determine marker color based on severity
+            const markerColor = getSeverityColor(issue.effective_severity);
+            
+            // Create custom marker
+            const marker = L.circleMarker([lat, lng], {
+                radius: selectedIssueId === issue._id ? 12 : 8, // Larger if selected
+                fillColor: markerColor,
+                color: '#fff',
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+            });
+            
+            // Create popup content
+            const popupContent = `
+                <div class="issue-popup">
+                    <h3>${issue.issue_category || 'Uncategorized Issue'}</h3>
+                    <p>${issue.text || 'No description'}</p>
+                    <p>Severity: <strong>${issue.effective_severity.toFixed(1)}</strong></p>
+                    <p>Votes: +${issue.upvotes || 0} / -${issue.downvotes || 0}</p>
+                </div>
+            `;
+            
+            marker.bindPopup(popupContent);
+            marker.addTo(map);
+            markers.push(marker);
+            
+            // Extend bounds to include this marker
+            bounds.extend([lat, lng]);
+        }
+        
+        function getSeverityColor(score) {
+            if (score >= 7) return '#d73a49'; // high - red
+            if (score >= 4) return '#f66a0a'; // medium - orange
+            return '#2cbe4e'; // low - green
+        }
+        
+        let refreshTime = new Date();
+        refreshTime.setMinutes(refreshTime.getMinutes() + 10);
+        
+        function updateRefreshTimer() {
+            refreshTime = new Date();
+            refreshTime.setMinutes(refreshTime.getMinutes() + 10);
+            
+            // Update timer every second
+            const timerInterval = setInterval(() => {
+                const now = new Date();
+                const diffMs = refreshTime - now;
+                
+                if (diffMs <= 0) {
+                    clearInterval(timerInterval);
+                    return;
+                }
+                
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffSecs = Math.floor((diffMs % 60000) / 1000);
+                
+                document.getElementById('next-refresh').textContent = 
+                    `Next refresh in ${diffMins}m ${diffSecs}s`;
+            }, 1000);
+        }
+        
+        async function fetchIssues() {
+            try {
+                const response = await fetch('/api/issues');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch issues');
+                }
+                
+                const issues = await response.json();
+                currentIssues = issues; // Store for map use
+                renderIssuesTable(issues);
+                updateIssueSelector(); // Update the dropdown
+                updateMapMarkers(); // Update map if needed
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('issues-table-container').innerHTML = 
+                    `<div class="loading">Error loading issues: ${error.message}</div>`;
+                
+                // Update selector with error state
+                const selector = document.getElementById('issue-selector');
+                selector.innerHTML = '<option disabled selected>Error loading issues</option>';
+            }
+        }
+        
+        function renderIssuesTable(issues) {
+            if (issues.length === 0) {
+                document.getElementById('issues-table-container').innerHTML = 
+                    '<div class="empty-state">No issues found.</div>';
+                return;
+            }
+            
+            const tableHtml = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Text</th>
+                            <th>Timestamp</th>
+                            <th>Sentiment</th>
+                            <th>Severity Score</th>
+                            <th>Issue Category</th>
+                            <th>Analysis Timestamp</th>
+                            <th>Vote</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${issues.map(issue => {
+                            const severityClass = getSeverityClass(issue.effective_severity);
+                            return `
+                                <tr data-id="${issue._id}">
+                                    <td class="text-cell">${issue.text || '-'}</td>
+                                    <td>${formatDate(issue.timestamp) || '-'}</td>
+                                    <td>${issue.sentiment || '-'}</td>
+                                    <td class="${severityClass}">${issue.effective_severity.toFixed(1)}</td>
+                                    <td>${issue.issue_category || '-'}</td>
+                                    <td>${formatDate(issue.analysis_timestamp) || '-'}</td>
+                                    <td>
+                                        <div class="vote-buttons">
+                                            <button class="vote-button upvote" onclick="initiateVote('${issue._id}', 'upvote')">▲</button>
+                                            <button class="vote-button downvote" onclick="initiateVote('${issue._id}', 'downvote')">▼</button>
+                                            <span class="vote-count">
+                                                +${issue.upvotes || 0} / -${issue.downvotes || 0}
+                                            </span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            document.getElementById('issues-table-container').innerHTML = tableHtml;
+        }
+        
+        function getSeverityClass(score) {
+            if (score >= 7) return 'severity-high';
+            if (score >= 4) return 'severity-medium';
+            return 'severity-low';
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return dateString;
+            
+            return date.toLocaleString();
+        }
+        
+        function initiateVote(issueId, voteType) {
+            // Store vote data for after location permission
+            pendingVoteData = { issueId, voteType };
+            
+            // Show location permission modal
+            document.getElementById('location-modal').style.display = 'block';
+        }
+        
+        function closeLocationModal() {
+            document.getElementById('location-modal').style.display = 'none';
+            pendingVoteData = null; // Clear pending vote
+        }
+        
+        function requestLocationAndVote() {
+            if (!pendingVoteData) {
+                closeLocationModal();
+                return;
+            }
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        // Success - got location
+                        const { latitude, longitude } = position.coords;
+                        submitVoteWithLocation(pendingVoteData.issueId, pendingVoteData.voteType, latitude, longitude);
+                        closeLocationModal();
+                    },
+                    (error) => {
+                        // Error getting location
+                        console.error('Geolocation error:', error);
+                        alert('Unable to get location. Your vote cannot be processed.');
+                        closeLocationModal();
+                    },
+                    {
+                        enableHighAccuracy: false, // No need for high accuracy
+                        timeout: 10000, // 10 seconds timeout
+                        maximumAge: 300000 // Cache location for 5 minutes
+                    }
+                );
+            } else {
+                alert('Geolocation is not supported by your browser. Your vote cannot be processed.');
+                closeLocationModal();
+            }
+        }
+        
+        async function submitVoteWithLocation(issueId, voteType, latitude, longitude) {
+            try {
+                const response = await fetch(`/api/issues/${issueId}/vote`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        voteType,
+                        location: {
+                            type: 'Point',
+                            coordinates: [longitude, latitude] // GeoJSON format is [longitude, latitude]
+                        }
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to update vote');
+                }
+                
+                const result = await response.json();
+                
+                // Update the UI immediately without refreshing the entire table
+                const row = document.querySelector(`tr[data-id="${issueId}"]`);
+                if (row) {
+                    const voteCountEl = row.querySelector('.vote-count');
+                    voteCountEl.textContent = `+${result.upvotes || 0} / -${result.downvotes || 0}`;
+                }
+                
+                // Update the issue in our currentIssues array
+                const issueIndex = currentIssues.findIndex(issue => issue._id === issueId);
+                if (issueIndex !== -1) {
+                    currentIssues[issueIndex].upvotes = result.upvotes;
+                    currentIssues[issueIndex].downvotes = result.downvotes;
+                    
+                    // Update the map if needed
+                    if (map && markers.length > 0) {
+                        updateMapMarkers();
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`Failed to submit vote: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
